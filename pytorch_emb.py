@@ -2,6 +2,8 @@
 # 1. Table lookup index is generated together for all iterations
 #    Currently we see very similar performance across iterations,
 #    even with same indices for each iteration
+#    So, use same indices for different iteration now. 
+#
 # 2. Test case:
 #    python3 pytorch_emb.py --features=30000000 --embdim=128 --nnz=100 --batch=8192 --testgpu=1 --verify=1 --steps=10
 #
@@ -51,7 +53,8 @@ if __name__ == "__main__":
   torch.manual_seed(random_seed)
 
   # 1. measure on CPU first
-  h_indices  = torch.randint(0, num_features, (warmups+steps, batch_size, nnz))
+  # h_indices  = torch.randint(0, num_features, (warmups+steps, batch_size, nnz))
+  h_indices  = torch.randint(0, num_features, (batch_size, nnz))
   print("Finished generating indices")
   h_emb = nn.EmbeddingBag(num_features, embed_dim, mode='sum')
   print("Finished generating tables")
@@ -62,30 +65,17 @@ if __name__ == "__main__":
 
   if (args.testcpu):
     total_times = 0
+    start1 = time.perf_counter()
     for i in range(warmups + steps):
       start = time.perf_counter()
-      h_results = h_emb(h_indices[i])
+      h_results = h_emb(h_indices)
       end  = time.perf_counter()    
-#      print(h_results)
-      print("Time ", end - start)
+      print("Time {0:.6f} ".format(end - start))
       if (i >= warmups):
         total_times += end - start
+    end1 = time.perf_counter()
        
-    print("CPU: time: {0:.6f} seconds for {1:6d} steps ".format(total_times, steps))
-    print("CPU: total bytes {0}, mem bw {1:.3f} GB/s".format(total_bytes, total_bytes*1.0*steps/total_times/1.0e9))
-    print("CPU results: ", h_results)
-
-    total_times = 0
-    for i in range(warmups + steps):
-      start = time.perf_counter()
-      results = h_emb(h_indices[0])
-      end  = time.perf_counter()
-      print("Time: ", end - start)
-#      print(h_results)
-      if (i >= warmups):
-        total_times += end - start
-
-    print("CPU: time: {0:.6f} seconds for {1:6d} steps ".format(total_times, steps))
+    print("CPU: total test time: {0:.6f} seconds, emb {1:.6f} seconds  for {2:6d} steps ".format(end1-start1, total_times, steps))
     print("CPU: total bytes {0}, mem bw {1:.3f} GB/s".format(total_bytes, total_bytes*1.0*steps/total_times/1.0e9))
     print("CPU results: ", h_results)
 
@@ -105,10 +95,10 @@ if __name__ == "__main__":
         start1 = time.perf_counter()
         for i in range(warmups + steps):
           start = time.perf_counter()
-          results = g_emb(g_indices[i])
+          results = g_emb(g_indices)
           torch.cuda.synchronize()
           end  = time.perf_counter()
-          print("Time: ", end - start)
+          print("Time: {0:.6f} ".format(end - start))
  #         print(results)
 
           if (i >= warmups):
@@ -116,8 +106,8 @@ if __name__ == "__main__":
 
         end1 = time.perf_counter()
         print("---------")
-        print("GPU: time: %.6f ", end1 - start1, " seconds, pure emb time %.6f : ", total_times)
-        print("GPU: total bytes: ", total_bytes, " mem bw: ", total_bytes*1.0*steps/total_times/1.0e9, " GB/s")
+        print("GPU: total test time: {0:.6f} seconds, emb {1:.6f} seconds  for {2:6d} steps ".format(end1-start1, total_times, steps))
+        print("GPU: total bytes {0}, mem bw {1:.3f} GB/s".format(total_bytes, total_bytes*1.0*steps/total_times/1.0e9))
         print("---------")
         print("GPU results: ", results)
         g_results = results.to('cpu')
