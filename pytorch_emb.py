@@ -60,6 +60,7 @@ if __name__ == "__main__":
   print("Finished generating tables")
   h_results = torch.zeros(batch_size, embed_dim)
   g_results = torch.zeros(batch_size, embed_dim)
+  t_results = torch.zeros(batch_size, embed_dim)
 
   total_bytes = batch_size * nnz * embed_dim * h_emb.weight.element_size()
 
@@ -112,7 +113,7 @@ if __name__ == "__main__":
         print("GPU results: ", results)
         g_results = results.to('cpu')
 
-  if (args.verify):
+    if (args.verify and args.testcpu):
       if (torch.equal(h_results, g_results)):
           print("Success! CPU results and GPU results match!\n")
       else:
@@ -121,4 +122,44 @@ if __name__ == "__main__":
           print(h_results)
           print("GPU results:")
           print(g_results)
+
+  if (args.testtpu):
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+
+    def syncTPU(tensor):
+      torch_xla._XLAC._xla_sync_multi([tensor], devices=[], wait=True, sync_xla_data=True)
+
+    alldev = xm.get_xla_supported_devices()
+    allrealdev = xm.xla_real_devices(alldev)
+    print("Found {0} devices: {1}".format(len(allrealdev), allrealdev))
+
+    dev = xm.xla_device()   
+    # dev = xm.xla_device(n=2, devkind='TPU')
+    t_emb = h_emb.to(dev)
+    t_indices = h_indices.to(dev)
+    
+    start1 = time.perf_counter()
+    for i in range(warmups + steps):
+      start = time.perf_counter()
+      results = t_emb(t_indices)
+      syncTPU(results)
+      end  = time.perf_counter()
+      print("Time: {0:.6f} ".format(end - start))
+      if (i >= warmups):
+        total_times += end - start
+
+    end1 = time.perf_counter()
+    print("---------")
+    print("GPU: total test time: {0:.6f} seconds, emb {1:.6f} seconds  for {2:6d} steps ".format(end1-start1, total_times, steps))
+    print("GPU: total bytes {0}, mem bw {1:.3f} GB/s".format(total_bytes, total_bytes*1.0*steps/total_times/1.0e9))
+    print("---------")
+    print("GPU results: ", results)
+    t_results = results.to('cpu')
+
+    if (args.verify and args.testcpu):
+      if (torch.equal(h_results, t_results)):
+        print("Success! CPU results and TPU results match!\n")
+      else:
+        print("Failed!  CPU and TPU results does not match!\n")
 
