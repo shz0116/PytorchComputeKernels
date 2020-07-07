@@ -54,9 +54,9 @@ if __name__ == "__main__":
      description="Measure the performance of GEMM using mm, or matmul"
   )
   # model related parameters
-  parser.add_argument("--m", type=int, default=1024)
-  parser.add_argument("--n", type=int, default=1024)
-  parser.add_argument("--k", type=int, default=1024)
+  parser.add_argument("-m", "--msize", type=int, default=1024)
+  parser.add_argument("-n", "--nsize", type=int, default=1024)
+  parser.add_argument("-k", "--ksize", type=int, default=1024)
   parser.add_argument("--dtype", type=str, default="float32")
   parser.add_argument("--testcpu", type=int, default=1)
   parser.add_argument("--testgpu", type=int, default=0)
