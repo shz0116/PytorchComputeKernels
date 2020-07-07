@@ -7,12 +7,41 @@
 # 2. Test case:
 #    python3 pytorch_emb.py --features=30000000 --embdim=128 --nnz=100 --batch=8192 --testgpu=1 --verify=1 --steps=10
 #
-
+# 3. Using XlaEmbedding Bag to replace torch.nn.embeddingnag with XLA on TPU now
+#
 import time
 import sys
 import numpy as np
 import torch
 import torch.nn as nn
+
+class XlaEmbeddingBag(nn.Module):
+    """
+    nn.EmbeddingBag is not lowered just yet to xla.
+    This performs the same functionality, in an xla compatible, sub-optimal way.
+    Warning!: only works with constant offsets atm.
+    """
+
+    def __init__(self, n, m, mode, offset, *args, **kwargs):
+        super(XlaEmbeddingBag, self).__init__()
+        self.n = n
+        self.m = m
+        self.mode = mode
+        self.offset = offset
+        self.embtable = nn.Embedding(n, m, *args, **kwargs)
+
+    def forward(self, sparse_index_group_batch, sparse_offset_group_batch):
+        emb = self.embtable(sparse_index_group_batch)
+        # XXX: only works w/ constant offset atm
+        bsz = emb.size(0) // self.offset
+        emb = emb.reshape(bsz, self.offset, *emb.size()[1:])
+        reduce_fn = getattr(torch, self.mode)
+        return reduce_fn(emb, axis=1)
+        #return reduce_fn(self.embtable(_) for _ in inp_list)
+
+    @property
+    def weight(self):
+        return self.embtable.weight
 
 if __name__ == "__main__":
   import sys
@@ -33,6 +62,8 @@ if __name__ == "__main__":
   parser.add_argument("--testgpu", type=int, default=0)
   parser.add_argument("--testtpu", type=int, default=0)
   parser.add_argument("--verify", type=int, default=0)
+  parser.add_argument("--usexlabag", type=int, default=0)
+
   args = parser.parse_args()
 
   num_features = args.features
@@ -54,9 +85,17 @@ if __name__ == "__main__":
 
   # 1. measure on CPU first
   # h_indices  = torch.randint(0, num_features, (warmups+steps, batch_size, nnz))
-  h_indices  = torch.randint(0, num_features, (batch_size, nnz))
+  h_indices  = torch.randint(0, num_features, (batch_size*nnz,))
+  # h_indices  = torch.randint(0, num_features, (batch_size, nnz))
+  h_offsets  = torch.zeros(batch_size, dtype=torch.int64)
+  for i in range(batch_size):
+    h_offsets[i] = i * nnz
   print("Finished generating indices")
-  h_emb = nn.EmbeddingBag(num_features, embed_dim, mode='sum')
+  if (not args.usexlabag):
+    h_emb = nn.EmbeddingBag(num_features, embed_dim, mode='sum')
+  else:
+    print("using XlaBag instead of torch.nn.EmbeddingBag now")
+    h_emb = XlaEmbeddingBag(num_features, embed_dim, "sum", nnz)
   print("Finished generating tables")
   h_results = torch.zeros(batch_size, embed_dim)
   g_results = torch.zeros(batch_size, embed_dim)
@@ -69,7 +108,8 @@ if __name__ == "__main__":
     start1 = time.perf_counter()
     for i in range(warmups + steps):
       start = time.perf_counter()
-      h_results = h_emb(h_indices)
+      h_results = h_emb(h_indices, h_offsets)
+      # h_results = emb1(h_indices)
       end  = time.perf_counter()    
       print("Time {0:.6f} ".format(end - start))
       if (i >= warmups):
@@ -91,12 +131,13 @@ if __name__ == "__main__":
       with torch.cuda.device(cuda0):
         g_emb      = h_emb.to(cuda0)
         g_indices  = h_indices.to(cuda0)
+        g_offsets  = h_offsets.to(cuda0)
         torch.cuda.synchronize()
 
         start1 = time.perf_counter()
         for i in range(warmups + steps):
           start = time.perf_counter()
-          results = g_emb(g_indices)
+          results = g_emb(g_indices, g_offsets)
           torch.cuda.synchronize()
           end  = time.perf_counter()
           print("Time: {0:.6f} ".format(end - start))
@@ -138,11 +179,12 @@ if __name__ == "__main__":
     # dev = xm.xla_device(n=2, devkind='TPU')
     t_emb = h_emb.to(dev)
     t_indices = h_indices.to(dev)
+    t_offsets = h_offsets.to(dev)
     
     start1 = time.perf_counter()
     for i in range(warmups + steps):
       start = time.perf_counter()
-      results = t_emb(t_indices)
+      results = t_emb(t_indices, t_offsets)
       syncTPU(results)
       end  = time.perf_counter()
       print("Time: {0:.6f} ".format(end - start))
