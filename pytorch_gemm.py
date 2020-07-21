@@ -1,6 +1,7 @@
 
 # measuring gemm (matmul, mm) performance using pytorch
 # using one matrix
+# exaple: python pytorch_gemm.py -m 4096 -n 4096 -k 4096  --verify  --testgpu --dtype=float16
 
 import time
 import numpy as np
@@ -58,17 +59,17 @@ if __name__ == "__main__":
   parser.add_argument("-n", "--nsize", type=int, default=1024)
   parser.add_argument("-k", "--ksize", type=int, default=1024)
   parser.add_argument("--dtype", type=str, default="float32")
-  parser.add_argument("--testcpu", type=int, default=1)
-  parser.add_argument("--testgpu", type=int, default=0)
-  parser.add_argument("--testtpu", type=int, default=0)
-  parser.add_argument("--verify", type=int, default=0)
+  parser.add_argument("--testcpu", action='store_true')
+  parser.add_argument("--testgpu", action='store_true')
+  parser.add_argument("--testtpu", action='store_true')
+  parser.add_argument("--verify", action='store_true')
   parser.add_argument("--steps", type=int, default=100)
   parser.add_argument("--warmups", type=int, default=10)
   args = parser.parse_args()
 
-  m = args.m
-  n = args.n
-  k = args.k
+  m = args.msize
+  n = args.nsize
+  k = args.ksize
   dt = torch.float32
   if (args.dtype == "float16" or args.dtype == "half"):
     dt = torch.float16
