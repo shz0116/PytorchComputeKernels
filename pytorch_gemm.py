@@ -33,16 +33,18 @@ def measure_gpu(a, b, steps, m):
   return end - start
 
 def measure_xla(a, b, steps, m):
-  def sync(tensor):
-    torch_xla._XLAC._xla_sync_multi([tensor], devices=[], wait=True, sync_xla_data=True)
+
+  import torch_xla
+  def sync(tensor, dev):
+    torch_xla._XLAC._xla_sync_multi([tensor], devices=[str(dev)], wait=True, sync_xla_data=True)
 
   global c
   start = time.perf_counter()
   for i in range(steps):
     c = torch.mm(a, b)
-    i1 = i % m
-    a[i1][0] = a[i1][0] + c[i1][0]   #prevent mm done only once
-    sync(c)
+#    i1 = i % m
+#    a[i1][0] = a[i1][0] + c[i1][0]   #This will slow down TPU performance significantly
+    sync(c, c.device)
   end = time.perf_counter()
   c.to('cpu')
   return end - start
@@ -138,6 +140,7 @@ if __name__ == "__main__":
     alldev = xm.get_xla_supported_devices()
     allrealdev = xm.xla_real_devices(alldev)
     print("Found {0} XLA devices: {1}".format(len(allrealdev), allrealdev))
+    print(torch.__version__)
 
     dev = xm.xla_device()
     a = a.to(dev)
