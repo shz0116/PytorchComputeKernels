@@ -39,9 +39,9 @@ class XlaEmbeddingBag(nn.Module):
         return reduce_fn(emb, axis=1)
         #return reduce_fn(self.embtable(_) for _ in inp_list)
 
-    @property
-    def weight(self):
-        return self.embtable.weight
+#    @property
+#    def weight(self):
+#        return self.embtable.weight
 
 if __name__ == "__main__":
   import sys
@@ -93,17 +93,19 @@ if __name__ == "__main__":
   print("Finished generating indices")
   if (not args.usexlabag):
     h_emb = nn.EmbeddingBag(num_features, embed_dim, mode='sum')
+    total_bytes = batch_size * nnz * embed_dim * h_emb.weight.element_size()
   else:
     print("using XlaBag instead of torch.nn.EmbeddingBag now")
     h_emb = XlaEmbeddingBag(num_features, embed_dim, "sum", nnz)
+    total_bytes = batch_size * nnz * embed_dim * h_emb.embtable.weight.element_size()
   print("Finished generating tables")
   h_results = torch.zeros(batch_size, embed_dim)
   g_results = torch.zeros(batch_size, embed_dim)
   t_results = torch.zeros(batch_size, embed_dim)
 
-  total_bytes = batch_size * nnz * embed_dim * h_emb.weight.element_size()
+  total_times = 0
 
-  if (args.testcpu):
+  if (not args.testcpu):
     total_times = 0
     start1 = time.perf_counter()
     for i in range(warmups + steps):
@@ -167,6 +169,11 @@ if __name__ == "__main__":
   if (args.testtpu):
     import torch_xla
     import torch_xla.core.xla_model as xm
+    import os
+    import math
+#    import torch_xla.debug.metrics as met
+
+    tsize = int(os.environ.get("MODEL_PARTITION_SIZE", 3000000))
 
     def syncTPU(tensor):
       torch_xla._XLAC._xla_sync_multi([tensor], devices=[], wait=True, sync_xla_data=True)
@@ -177,7 +184,31 @@ if __name__ == "__main__":
 
     dev = xm.xla_device()   
     # dev = xm.xla_device(n=2, devkind='TPU')
-    t_emb = h_emb.to(dev)
+    if (args.features > tsize):
+      if args.usexlabag:
+        tsplit = torch.split(h_emb.embtable.weight, tsize, dim = 0)
+      else:
+        tsplit = torch.split(h_emb.weight, tsize, dim = 0)
+      tsplit = list(tsplit)
+      for i, chunk in enumerate(tsplit):
+         tsplit[i] = chunk.to(dev)
+
+      t = nn.Parameter(torch.ones(10, 10))
+      if usexlabag:
+        h_emb.embtable.weight = t
+        t_emb = h_emb.to(dev)
+        tsplit = torch.cat(tsplit)
+        t_emb.embtable.weight = nn.Parameter(tsplit)
+        print("EMB weight shape: ", t_emb.embtable.weight.shape, " on device: ", str(dev))
+      else:
+        h_emb.weight = t
+        t_emb = h_emb.to(dev)
+        tsplit = torch.cat(tsplit)
+        t_emb.weight = nn.Parameter(tsplit)
+        print("EMB weight shape: ", t_emb.weight.shape, " on device: ", str(dev))
+    else:
+      t_emb = h_emb.to(dev)
+
     t_indices = h_indices.to(dev)
     t_offsets = h_offsets.to(dev)
     
@@ -192,6 +223,8 @@ if __name__ == "__main__":
         total_times += end - start
 
     end1 = time.perf_counter()
+#    print(met.metrics_report())
+
     print("---------")
     print("GPU: total test time: {0:.6f} seconds, emb {1:.6f} seconds  for {2:6d} steps ".format(end1-start1, total_times, steps))
     print("GPU: total bytes {0}, mem bw {1:.3f} GB/s".format(total_bytes, total_bytes*1.0*steps/total_times/1.0e9))
