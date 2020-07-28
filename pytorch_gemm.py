@@ -145,6 +145,7 @@ if __name__ == "__main__":
     dev = xm.xla_device()
     a = a.to(dev)
     b = b.to(dev)
+    c = c.to(dev)
     measure_xla(a, b, warmups, m)
     elap1 = measure_xla(a, b, steps, m)
 

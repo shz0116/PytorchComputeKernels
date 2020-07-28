@@ -55,14 +55,14 @@ if __name__ == "__main__":
   parser.add_argument("--embdim", type=int, default=64)
   parser.add_argument("--nnz", type=int, default=10)
   parser.add_argument("--batch", type=int, default=1000)
-  parser.add_argument("--steps", type=int, default=4)
-  parser.add_argument("--warmups", type=int, default=2)
+  parser.add_argument("--steps", type=int, default=10)
+  parser.add_argument("--warmups", type=int, default=1)
   parser.add_argument("--randomseed", type=int, default=0)
-  parser.add_argument("--testcpu", type=int, default=1)
-  parser.add_argument("--testgpu", type=int, default=0)
-  parser.add_argument("--testtpu", type=int, default=0)
-  parser.add_argument("--verify", type=int, default=0)
-  parser.add_argument("--usexlabag", type=int, default=0)
+  parser.add_argument("--testcpu", action='store_true', default=False)
+  parser.add_argument("--testgpu", action='store_true', default=False)
+  parser.add_argument("--testtpu", action='store_true', default=False)
+  parser.add_argument("--verify", action='store_true', default=False)
+  parser.add_argument("--usexlabag", action='store_true', default=False)
 
   args = parser.parse_args()
 
@@ -98,14 +98,14 @@ if __name__ == "__main__":
     print("using XlaBag instead of torch.nn.EmbeddingBag now")
     h_emb = XlaEmbeddingBag(num_features, embed_dim, "sum", nnz)
     total_bytes = batch_size * nnz * embed_dim * h_emb.embtable.weight.element_size()
-  print("Finished generating tables")
+  print("Finished generating tables. Using mem: ", total_bytes)
   h_results = torch.zeros(batch_size, embed_dim)
   g_results = torch.zeros(batch_size, embed_dim)
   t_results = torch.zeros(batch_size, embed_dim)
 
   total_times = 0
 
-  if (not args.testcpu):
+  if (args.testcpu or args.verify):
     total_times = 0
     start1 = time.perf_counter()
     for i in range(warmups + steps):
@@ -194,12 +194,12 @@ if __name__ == "__main__":
          tsplit[i] = chunk.to(dev)
 
       t = nn.Parameter(torch.ones(10, 10))
-      if usexlabag:
+      if args.usexlabag:
         h_emb.embtable.weight = t
         t_emb = h_emb.to(dev)
         tsplit = torch.cat(tsplit)
         t_emb.embtable.weight = nn.Parameter(tsplit)
-        print("EMB weight shape: ", t_emb.embtable.weight.shape, " on device: ", str(dev))
+        print("Xla EMB weight shape: ", t_emb.embtable.weight.shape, " on device: ", str(dev))
       else:
         h_emb.weight = t
         t_emb = h_emb.to(dev)
