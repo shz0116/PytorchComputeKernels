@@ -226,10 +226,10 @@ if __name__ == "__main__":
 #    print(met.metrics_report())
 
     print("---------")
-    print("GPU: total test time: {0:.6f} seconds, emb {1:.6f} seconds  for {2:6d} steps ".format(end1-start1, total_times, steps))
-    print("GPU: total bytes {0}, mem bw {1:.3f} GB/s".format(total_bytes, total_bytes*1.0*steps/total_times/1.0e9))
+    print("TPU: total test time: {0:.6f} seconds, emb {1:.6f} seconds  for {2:6d} steps ".format(end1-start1, total_times, steps))
+    print("TPU: total bytes {0}, mem bw {1:.3f} GB/s".format(total_bytes, total_bytes*1.0*steps/total_times/1.0e9))
     print("---------")
-    print("GPU results: ", results)
+    print("TPU results: ", results)
     t_results = results.to('cpu')
 
     if (args.verify and args.testcpu):
