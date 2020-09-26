@@ -36,35 +36,25 @@ def measure_gpu(a, b, steps, m):
     return end - start
 
 
-def measure_xla(a, b, steps, s, ss):
+def measure_xla(a, b, steps, m):
 
     import torch_xla
 
-    def sync(tensor, dev):
-        torch_xla._XLAC._xla_sync_multi([tensor], devices=[str(dev)], wait=True, sync_xla_data=True)
-
     global c
     start = time.perf_counter()
-    for i in range(steps):
-        # t1 = time.perf_counter()
-        c = torch.mm(a, b)
-        a[:, 0:s] = torch.min(a[:, 0:s], c[:, 0:s])
-        # b[0:ss, :] = torch.min(b[0:ss, :], c[0:ss, :])
-        ## i1 = i % m
-        # i1 = 0
-        ## a[i1][0] = a[i1][0] + c[i1][0]   #This will slow down TPU performance significantly
-        # b[0] = torch.min(c[0], b[0])
-        # xm.mark_step()
-        # t2 = time.perf_counter()
-        # print("Iter ", i, " time ", t2 - t1)
-        # xm.mark_step()  
-
-    # print(torch_xla._XLAC._get_xla_tensors_text([c]))
-    sync(c, c.device)
+    for i in range(steps+1):
+        t1 = time.time()
+        c = torch.bmm(a, b)
+        # i1 = i % m
+        # a[i1][0] = a[i1][0] + c[i1][0]   #This will slow down TPU performance significantly
+        xm.mark_step()
+        if i == 0:
+            start = time.perf_counter()
+        t2 = time.time()
+        print("Time: ", t2 - t1, " in iter ", i)
+        
     end = time.perf_counter()
-    c = c.to('cpu')
-    end1 = time.perf_counter()
-    print("TIMING: ", end - start, end1 - start)
+    c.to('cpu')
     return end - start
 
 
@@ -84,7 +74,7 @@ if __name__ == "__main__":
     parser.add_argument("--testtpu", action='store_true')
     parser.add_argument("--verify", action='store_true')
     parser.add_argument("--steps", type=int, default=100)
-    parser.add_argument("--warmups", type=int, default=1)
+    parser.add_argument("--warmups", type=int, default=4)
     args = parser.parse_args()
 
     m = args.msize
@@ -161,18 +151,28 @@ if __name__ == "__main__":
         print(torch.__version__)
 
         dev = xm.xla_device()
+
+        x = torch.randn(2,2).to(dt)
+        print("Element size is ", x.element_size())
+        N = 4 * 1024 * 1024 * 1024 // ((m * n + m * k + k * n) * x.element_size()) 
+        N = max(N, 1)
+        # N = 30
+        print("Element size is ", x.element_size(), " batch size: ", N)
+
+        a = torch.randn(N, m, k).to(dt)
+        b = torch.randn(N, k, n).to(dt)
+        c = torch.zeros(N, m, n).to(dt)
+
         a = a.to(dev)
         b = b.to(dev)
         c = c.to(dev)
-        s = min(k, n) 
-        ss = min(k, m)
-        # measure_xla(a, b, warmups, s)
-        elap1 = measure_xla(a, b, steps, s, ss)
-        print("S is", s, ss)
+        elap0 = measure_xla(a, b, warmups, m)
+        elap1 = measure_xla(a, b, steps, m)
 
-        # print("c device: ", c.device, type(c), c.dtype)
-        # print("c[2x2] : ", c.narrow(0, 0, 2).narrow(1, 0, 2))
-        # print("------")
+        print("AAA: ", elap0, elap1)
+        print("c device: ", c.device, type(c), c.dtype)
+        print("c[2x2] : ", c[0].narrow(0, 0, 2).narrow(1, 0, 2))
+        print("------")
         print("TPU(xla) Time is {0:.6f} seconds, rate {1:.3f} GFlops for iter {2} ".format(elap1,
-              m * n * k * 2 * 1.0 / (elap1 * 1000000000 / steps), steps))
+              N * m * n * k * 2 * 1.0 / (elap1 * 1000000000 / steps), steps))
         print("------\n")
