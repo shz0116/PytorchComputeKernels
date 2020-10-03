@@ -3,43 +3,43 @@
 export XLA_USE_BF16=1
 
 echo "Running bfloat16:"
-for i in 128
+for i in 512
 do
  echo "testing*** $i    4096 4096"
- python  pytorch_gemm.py -m $i    -n 4096  -k 4096  --testtpu  --steps=100 
- python  pytorch_gemm.py -m $i    -n 4096  -k 4096  --testtpu  --steps=100 
- python  pytorch_gemm.py -m $i    -n 4096  -k 4096  --testtpu  --steps=100 
+ python  pytorch_gemm.py -m $i    -n 4096  -k 4096  --testtpu  --steps=300 
+ python  pytorch_gemm.py -m $i    -n 4096  -k 4096  --testtpu  --steps=300 
+ python  pytorch_gemm.py -m $i    -n 4096  -k 4096  --testtpu  --steps=300 
  echo "testing*** $i    1024 1024"
- python  pytorch_gemm.py -m $i    -n 1024  -k 1024  --testtpu  --steps=100 
- python  pytorch_gemm.py -m $i    -n 1024  -k 1024  --testtpu  --steps=100 
- python  pytorch_gemm.py -m $i    -n 1024  -k 1024  --testtpu  --steps=100
+ python  pytorch_gemm.py -m $i    -n 1024  -k 1024  --testtpu  --steps=300 
+ python  pytorch_gemm.py -m $i    -n 1024  -k 1024  --testtpu  --steps=300 
+ python  pytorch_gemm.py -m $i    -n 1024  -k 1024  --testtpu  --steps=300
  echo "testing*** 4096 4096 $i"
- python  pytorch_gemm.py -m 4096  -n 4096  -k $i    --testtpu  --steps=100 
- python  pytorch_gemm.py -m 4096  -n 4096  -k $i    --testtpu  --steps=100
- python  pytorch_gemm.py -m 4096  -n 4096  -k $i    --testtpu  --steps=100 
+ python  pytorch_gemm.py -m 4096  -n 4096  -k $i    --testtpu  --steps=300 
+ python  pytorch_gemm.py -m 4096  -n 4096  -k $i    --testtpu  --steps=300
+ python  pytorch_gemm.py -m 4096  -n 4096  -k $i    --testtpu  --steps=300 
  echo "testing*** 1024 1024 $i"
- python  pytorch_gemm.py -m 1024  -n 1024  -k $i    --testtpu  --steps=100 
- python  pytorch_gemm.py -m 1024  -n 1024  -k $i    --testtpu  --steps=100
- python  pytorch_gemm.py -m 1024  -n 1024  -k $i    --testtpu  --steps=100  
+ python  pytorch_gemm.py -m 1024  -n 1024  -k $i    --testtpu  --steps=300 
+ python  pytorch_gemm.py -m 1024  -n 1024  -k $i    --testtpu  --steps=300
+ python  pytorch_gemm.py -m 1024  -n 1024  -k $i    --testtpu  --steps=300  
  echo "testing*** $i 4096 40928"
- python  pytorch_gemm.py -m $i    -n 4096  -k 40928 --testtpu  --steps=100 
- python  pytorch_gemm.py -m $i    -n 4096  -k 40928 --testtpu  --steps=100 
- python  pytorch_gemm.py -m $i    -n 4096  -k 40928 --testtpu  --steps=100 
+ python  pytorch_gemm.py -m $i    -n 4096  -k 40928 --testtpu  --steps=300 
+ python  pytorch_gemm.py -m $i    -n 4096  -k 40928 --testtpu  --steps=300 
+ python  pytorch_gemm.py -m $i    -n 4096  -k 40928 --testtpu  --steps=300 
  echo "testing*** $i 40928 4096"
- python  pytorch_gemm.py -m $i    -n 40928 -k 4096  --testtpu  --steps=100 
- python  pytorch_gemm.py -m $i    -n 40928 -k 4096  --testtpu  --steps=100 
- python  pytorch_gemm.py -m $i    -n 40928 -k 4096  --testtpu  --steps=100 
+ python  pytorch_gemm.py -m $i    -n 40928 -k 4096  --testtpu  --steps=300 
+ python  pytorch_gemm.py -m $i    -n 40928 -k 4096  --testtpu  --steps=300 
+ python  pytorch_gemm.py -m $i    -n 40928 -k 4096  --testtpu  --steps=300 
  echo "testing*** $i 1024 2000"
- python  pytorch_gemm.py -m $i    -n 1024  -k 2000  --testtpu  --steps=100 
- python  pytorch_gemm.py -m $i    -n 1024  -k 2000  --testtpu  --steps=100 
- python  pytorch_gemm.py -m $i    -n 1024  -k 2000  --testtpu  --steps=100 
+ python  pytorch_gemm.py -m $i    -n 1024  -k 2000  --testtpu  --steps=300 
+ python  pytorch_gemm.py -m $i    -n 1024  -k 2000  --testtpu  --steps=300 
+ python  pytorch_gemm.py -m $i    -n 1024  -k 2000  --testtpu  --steps=300 
  echo "testing*** 1024 2000 $i"
- python  pytorch_gemm.py -m 1024  -n 2000  -k $i    --testtpu  --steps=100 
- python  pytorch_gemm.py -m 1024  -n 2000  -k $i    --testtpu  --steps=100 
- python  pytorch_gemm.py -m 1024  -n 2000  -k $i    --testtpu  --steps=100 
+ python  pytorch_gemm.py -m 1024  -n 2000  -k $i    --testtpu  --steps=300 
+ python  pytorch_gemm.py -m 1024  -n 2000  -k $i    --testtpu  --steps=300 
+ python  pytorch_gemm.py -m 1024  -n 2000  -k $i    --testtpu  --steps=300 
  echo "testing*** 4096 40928 $i"
- python  pytorch_gemm.py -m 4096  -n 40928 -k $i    --testtpu  --steps=100 
- python  pytorch_gemm.py -m 4096  -n 40928 -k $i    --testtpu  --steps=100 
- python  pytorch_gemm.py -m 4096  -n 40928 -k $i    --testtpu  --steps=100 
+ python  pytorch_gemm.py -m 4096  -n 40928 -k $i    --testtpu  --steps=300 
+ python  pytorch_gemm.py -m 4096  -n 40928 -k $i    --testtpu  --steps=300 
+ python  pytorch_gemm.py -m 4096  -n 40928 -k $i    --testtpu  --steps=300 
 done
 

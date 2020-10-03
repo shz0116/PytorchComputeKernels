@@ -36,7 +36,7 @@ def measure_gpu(a, b, steps, m):
     return end - start
 
 
-def measure_xla(a, b, steps, s, ss):
+def measure_xla_double(a, b, steps, s, ss):
 
     import torch_xla
 
@@ -44,21 +44,14 @@ def measure_xla(a, b, steps, s, ss):
         torch_xla._XLAC._xla_sync_multi([tensor], devices=[str(dev)], wait=True, sync_xla_data=True)
 
     global c
+    aT = torch.transpose(a, 0, 1)
+    c = torch.mm(a, b)
     start = time.perf_counter()
+    # Data dependency is added to prevent the loop isoptimized away
+    # Based on experiemnets, (m,n,k) matrix shapes deliver similar perf with (k, m, n)
     for i in range(steps):
-        # t1 = time.perf_counter()
+        b = torch.mm(aT, c)
         c = torch.mm(a, b)
-        a[:, 0:s] = torch.min(a[:, 0:s], c[:, 0:s])
-        # b[0:ss, :] = torch.min(b[0:ss, :], c[0:ss, :])
-        ## i1 = i % m
-        # i1 = 0
-        ## a[i1][0] = a[i1][0] + c[i1][0]   #This will slow down TPU performance significantly
-        # b[0] = torch.min(c[0], b[0])
-        # xm.mark_step()
-        # t2 = time.perf_counter()
-        # print("Iter ", i, " time ", t2 - t1)
-        # xm.mark_step()  
-
     # print(torch_xla._XLAC._get_xla_tensors_text([c]))
     sync(c, c.device)
     end = time.perf_counter()
@@ -67,6 +60,47 @@ def measure_xla(a, b, steps, s, ss):
     print("TIMING: ", end - start, end1 - start)
     return end - start
 
+def measure_xla(a, b, steps, s, ss, k,n,dt):
+
+    import torch_xla
+
+    def sync(tensor, dev):
+        torch_xla._XLAC._xla_sync_multi([tensor], devices=[str(dev)], wait=True, sync_xla_data=True)
+
+    global c
+    c = torch.mm(a, b)
+    start = time.perf_counter()
+    # Data dependency is added to prevent the loop isoptimized away
+    # Based on experiemnets, (m,n,k) matrix shapes deliver similar perf with (k, m, n)
+    for i in range(steps):
+        b[0] = torch.min(c[0], b[0])
+        c = torch.min(torch.mm(a, b), c)
+    # print(torch_xla._XLAC._get_xla_tensors_text([c]))
+    sync(c, c.device)
+    end = time.perf_counter()
+    c = c.to('cpu')
+    end1 = time.perf_counter()
+    print("TIMING: ", end - start, end1 - start)
+    return end - start
+
+def measure_xla_square(a, b, steps, s, ss):
+
+    import torch_xla
+    def sync(tensor, dev):
+        torch_xla._XLAC._xla_sync_multi([tensor], devices=[str(dev)], wait=True, sync_xla_data=True)
+
+    global c
+    c = torch.mm(a, b)
+    start = time.perf_counter()
+    for i in range(steps):
+        c = torch.mm(c, c)
+    # print(torch_xla._XLAC._get_xla_tensors_text([c]))
+    sync(c, c.device)
+    end = time.perf_counter()
+    c = c.to('cpu')
+    end1 = time.perf_counter()
+    print("TIMING: ", end - start, end1 - start)
+    return end - start
 
 if __name__ == "__main__":
 
@@ -166,9 +200,9 @@ if __name__ == "__main__":
         c = c.to(dev)
         s = min(k, n) 
         ss = min(k, m)
-        # measure_xla(a, b, warmups, s)
-        elap1 = measure_xla(a, b, steps, s, ss)
-        print("S is", s, ss)
+        # elap0 = measure_xla(a, b, warmups, s, ss)
+        elap1 = measure_xla(a, b, steps, s, ss, k, n, dt)
+        print("S is", s, ss, elap1)
 
         # print("c device: ", c.device, type(c), c.dtype)
         # print("c[2x2] : ", c.narrow(0, 0, 2).narrow(1, 0, 2))
