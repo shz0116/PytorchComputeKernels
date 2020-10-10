@@ -4,9 +4,10 @@
 # LICENSE file in the root directory of this source tree.
 
 import time
+import sys
 import torch
 
-def measure_cpu(a, b, steps, m):
+def measure_cpu(a, b, steps):
 
     global c
     start = time.perf_counter()
@@ -17,7 +18,7 @@ def measure_cpu(a, b, steps, m):
     return end - start
 
 
-def measure_gpu(a, b, steps, m):
+def measure_gpu(a, b, steps):
 
     global c
     torch.cuda.synchronize()
@@ -30,7 +31,7 @@ def measure_gpu(a, b, steps, m):
     return end - start
 
 
-def measure_xla(a, b, steps, m):
+def measure_xla(a, b, steps):
 
     import torch_xla
 
@@ -45,7 +46,7 @@ def measure_xla(a, b, steps, m):
         # The PyTorch/XLA lazy evaluation will eliminate the loop
         # Simplier data dependency will not work
         b[0] = torch.min(c[0], b[0])
-        c = torch.min(torch.mm(a, b), c)
+        c = torch.min(c, torch.mm(a, b))
     sync(c, c.device)
     end = time.perf_counter()
     c.to('cpu')
@@ -72,24 +73,26 @@ def run_single(args, m, n, k):
     b = torch.randn(k, n).to(dt)
     c = torch.zeros(m, n).to(dt)
 
-    is_cuda = torch.cuda.is_available()
-
     if device == 'cpu':
 
-        measure_cpu(a, b, warmups, m)
-        elap = measure_cpu(a, b, steps, m)
+        measure_cpu(a, b, warmups)
+        elap = measure_cpu(a, b, steps)
 
-    elif device == 'gpu' and is_cuda:
+    elif device == 'gpu':
 
-        ncuda = torch.cuda.device_count()
-        # print("There are {} cuda devices".format(ncuda))
-        # print("The first cuda device name is {} ".format(torch.cuda.get_device_name()))
-        cuda0 = torch.device('cuda:0')
-        with torch.cuda.device(cuda0):
-            acuda = a.to(cuda0)
-            bcuda = b.to(cuda0)
-            measure_gpu(acuda, bcuda, warmups, m)
-            elap = measure_gpu(acuda, bcuda, steps, m)
+        if torch.cuda.is_available():
+            ncuda = torch.cuda.device_count()
+            # print("There are {} cuda devices".format(ncuda))
+            # print("The first cuda device name is {} ".format(torch.cuda.get_device_name()))
+            cuda0 = torch.device('cuda:0')
+            with torch.cuda.device(cuda0):
+                acuda = a.to(cuda0)
+                bcuda = b.to(cuda0)
+                measure_gpu(acuda, bcuda, warmups)
+                elap = measure_gpu(acuda, bcuda, steps)
+        else:
+            print("CUDA is not available")
+            sys.exit(1)
 
     else:
         # import torch_xla
@@ -103,8 +106,8 @@ def run_single(args, m, n, k):
         a = a.to(dev)
         b = b.to(dev)
         c = c.to(dev)
-        measure_xla(a, b, warmups, m)
-        elap = measure_xla(a, b, steps, m)
+        measure_xla(a, b, warmups)
+        elap = measure_xla(a, b, steps)
 
     return elap
 
