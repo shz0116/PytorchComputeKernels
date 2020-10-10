@@ -24,10 +24,6 @@ def measure_gpu(a, b, steps, m):
     start = time.perf_counter()
     for i in range(steps):
         c = torch.mm(a, b)
-        # To be consistent with TPU
-        # Add data dependency to prevent loop elimination
-        i1 = i % m
-        a[i1][0] = a[i1][0] + c[i1][0]
     torch.cuda.synchronize()
     end = time.perf_counter()
     c.to('cpu')
@@ -115,13 +111,14 @@ def run_single(args, m, n, k):
 def run(args, dataset):
 
     print("----------------------------------------------------------------")
-    print("         M         N          K          Time(s)      Rate(GF/s)")
+    print("         M         N          K          Time(s)      Rate(TF/s)")
     print("----------------------------------------------------------------")
     for i in range(len(dataset)):
         m, n, k = dataset[i]
         elap = run_single(args, m, n, k)
+        elap /= args.steps
         print("{0:10}, {1:10}, {2:10},     {3:10.6f}     {4:.3f} ".format(m, n, k, elap,
-            m * n * k * 2 * 1.0 / (elap * 1000000000 / args.steps)))
+            m * n * k * 2 * 1.0 / elap / 1.0e12))
 
 if __name__ == "__main__":
 

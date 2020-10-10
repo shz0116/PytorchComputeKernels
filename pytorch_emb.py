@@ -34,7 +34,6 @@ class XlaEmbeddingBag(nn.Module):
 
 def measure_cpu(warmups, steps, h_emb, h_indices, h_offsets):
 
-    emb_times = 0
     start = time.perf_counter()
     for i in range(warmups + steps):
         results = h_emb(h_indices, h_offsets)
@@ -60,10 +59,11 @@ def measure_gpu(warmups, steps, h_emb, h_indices, h_offsets):
         start = time.perf_counter()
         for i in range(warmups + steps):
             results = g_emb(g_indices, g_offsets)
-            torch.cuda.synchronize()
+            # torch.cuda.synchronize()
             if (i < warmups):
+                torch.cuda.synchronize()
                 start = time.perf_counter()
-
+        torch.cuda.synchronize()
         end = time.perf_counter()
 
     return end - start, results

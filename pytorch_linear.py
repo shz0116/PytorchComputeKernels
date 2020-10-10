@@ -194,7 +194,7 @@ def run_single(args, layer_num, input_size, hidden_size, output_size, batch_size
 
         if data_type == "float16":
             apex.amp.initialize(
-                model, optimizer, opt_level="O2", verbosity=1
+                model, optimizer, opt_level="O2", verbosity=0
             )
 
     elif device == "tpu":
@@ -229,7 +229,7 @@ def run_single(args, layer_num, input_size, hidden_size, output_size, batch_size
 def run(args, dataset):
 
     print("--------------------------------------------------------------------------------")
-    print(" #Layer    Input    Hidden    Output   Batch   Time(s)/step  QPS      Rate(GF/s)")
+    print(" #Layer    Input    Hidden    Output   Batch   Time(s)/step  QPS      Rate(TF/s)")
     print("--------------------------------------------------------------------------------")
 
     for i in range(len(dataset)):
@@ -245,7 +245,7 @@ def run(args, dataset):
         QPS = batch_size / elap
 
         print("{0:6},  {1:6},  {2:6},  {3:6},  {4:6},  {5:10.6f},  {6:8.1f}, {7:10.1f}".format(layer_num,
-            input_size, hidden_size, output_size, batch_size, elap, QPS, flops / elap / 1.0e9))
+            input_size, hidden_size, output_size, batch_size, elap, QPS, flops / elap / 1.0e12))
 
 if __name__ == "__main__":
 
