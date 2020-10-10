@@ -77,7 +77,7 @@ def measure_tpu(warmups, steps, h_emb, h_indices, h_offsets, usexlabag):
 
     # If emb table is too large will cause protobuf error,
     # we have to split them
-    tsize = int(os.environ.get("MODEL_PARTITION_SIZE", 3000000))
+    tsize = int(os.environ.get("MODEL_PARTITION_SIZE", 30000000))
 
     def syncTPU(tensor):
         torch_xla._XLAC._xla_sync_multi([tensor], devices=[], wait=True, sync_xla_data=True)
@@ -87,7 +87,12 @@ def measure_tpu(warmups, steps, h_emb, h_indices, h_offsets, usexlabag):
     # print("Found {0} devices: {1}".format(len(allrealdev), allrealdev))
 
     dev = xm.xla_device()
-    if (args.features > tsize):
+    if usexlabag:
+        features = h_emb.n
+    else:
+        features = h_emb.weight.shape[0]
+
+    if (features > tsize):
         if usexlabag:
             tsplit = torch.split(h_emb.embtable.weight, tsize, dim=0)
         else:
