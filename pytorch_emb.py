@@ -69,7 +69,7 @@ def measure_gpu(warmups, steps, h_emb, h_indices, h_offsets):
     return end - start, results
 
 
-def measure_tpu(warmups, steps, h_emb, h_indices, h_offsets, usexlabag):
+def measure_tpu(warmups, steps, h_emb, h_indices, h_offsets, usexlabag, batch, nnz):
 
     import torch_xla
     import torch_xla.core.xla_model as xm
@@ -77,7 +77,7 @@ def measure_tpu(warmups, steps, h_emb, h_indices, h_offsets, usexlabag):
 
     # If emb table is too large will cause protobuf error,
     # we have to split them
-    tsize = int(os.environ.get("MODEL_PARTITION_SIZE", 30000000))
+    tsize = int(os.environ.get("MODEL_PARTITION_SIZE", 60000000))
 
     def syncTPU(tensor):
         torch_xla._XLAC._xla_sync_multi([tensor], devices=[], wait=True, sync_xla_data=True)
@@ -121,11 +121,13 @@ def measure_tpu(warmups, steps, h_emb, h_indices, h_offsets, usexlabag):
     t_offsets = h_offsets.to(dev)
 
     start = time.perf_counter()
-    for i in range(warmups + steps):
-        results = t_emb(t_indices, t_offsets)
-        syncTPU(results)
-        if (i < warmups):
-            start = time.perf_counter()
+    results = t_emb(t_indices, t_offsets)
+    start = time.perf_counter()
+    for i in range(steps):
+        h_indices = torch.randint(0, features, (batch*nnz,))
+        results += t_emb(t_indices, t_offsets)
+#    print(torch_xla._XLAC._get_xla_tensors_text([results]))
+    syncTPU(results)
 
     end = time.perf_counter()
     results = results.cpu()
@@ -171,7 +173,7 @@ def run_single(args, features, embdim, nnz, batch):
             sys.exit(1)
 
     else:
-        emb_times, t_results = measure_tpu(warmups, steps, h_emb, h_indices, h_offsets, args.usexlabag)
+        emb_times, t_results = measure_tpu(warmups, steps, h_emb, h_indices, h_offsets, args.usexlabag, batch, nnz)
 
     return emb_times, total_bytes
 

@@ -19,7 +19,8 @@ if __name__ == "__main__":
     parser.add_argument('--steps', type=int, default=100, help="repeat times")
     parser.add_argument('--device', type=str, choices=['cpu', 'gpu', 'tpu'], required=True, help='valid devices')
 
-    subparsers = parser.add_subparsers(title='kernels', dest='kernel', required=True)
+    subparsers = parser.add_subparsers(title='kernels', dest='kernel')
+    subparsers.required = True
 
     parser_gemm = subparsers.add_parser('gemm', help='measure mm performance (m,k)*(k,n)=(m,n)')
     parser_gemm.add_argument('-t', '--dtype', type=str, default="float32")
