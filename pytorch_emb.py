@@ -5,6 +5,7 @@
 
 import time
 import sys
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -123,10 +124,8 @@ def measure_tpu(warmups, steps, h_emb, h_indices, h_offsets, usexlabag, batch, n
     start = time.perf_counter()
     results = t_emb(t_indices, t_offsets)
     start = time.perf_counter()
-    for i in range(steps):
-        h_indices = torch.randint(0, features, (batch*nnz,))
+    for _ in range(steps):
         results += t_emb(t_indices, t_offsets)
-#    print(torch_xla._XLAC._get_xla_tensors_text([results]))
     syncTPU(results)
 
     end = time.perf_counter()
@@ -134,6 +133,31 @@ def measure_tpu(warmups, steps, h_emb, h_indices, h_offsets, usexlabag, batch, n
 
     return end - start,results
 
+
+def init_indices(alpha, features, batch, nnz):
+
+    if alpha == 0.0:
+        indices = torch.randint(0, features, (batch*nnz,))
+    else:
+        # Zipf (i.e. zeta) distribution
+        pmf = np.power(np.arange(1, features + 1, dtype=np.float64), -alpha)
+        pmf = pmf / pmf.sum()
+        # oversample and then remove duplicates to obtain sampling without replacement
+        indices = np.random.choice(features, size=(batch, 2 * nnz), replace=True, p=pmf)
+        for b in range(batch):
+            r = set()
+            for x in indices[b, :]:
+                if x in r:
+                    continue
+                else:
+                    r.add(x)
+                    if len(r) == nnz:
+                        break
+
+            indices[b, :nnz] = list(r)
+        indices = torch.flatten(torch.tensor(indices[:, :nnz])).to(torch.int64)
+
+    return indices
 
 def run_single(args, features, embdim, nnz, batch):
 
@@ -144,7 +168,7 @@ def run_single(args, features, embdim, nnz, batch):
 
     torch.manual_seed(random_seed)
 
-    h_indices = torch.randint(0, features, (batch*nnz,))
+    h_indices = init_indices(args.alpha, features, batch, nnz)
     h_offsets = torch.zeros(batch, dtype=torch.int64)
     for i in range(batch):
         h_offsets[i] = i * nnz
@@ -209,6 +233,7 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--dtype", type=str, default="float32")
     parser.add_argument("-d", "--device", choices=['cpu', 'gpu', 'tpu'], type=str, default='cpu')
     parser.add_argument("--usexlabag", action='store_true')
+    parser.add_argument("--alpha", type=float, default=0.0, help="Zipf param. Use uniform if == 0.0")
 
     args = parser.parse_args()
 
