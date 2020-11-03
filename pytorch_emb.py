@@ -120,18 +120,33 @@ def measure_tpu(warmups, steps, h_emb, h_indices, h_offsets, usexlabag, batch, n
 
     t_indices = h_indices.to(dev)
     t_offsets = h_offsets.to(dev)
-
-    start = time.perf_counter()
     results = t_emb(t_indices, t_offsets)
-    start = time.perf_counter()
-    for _ in range(steps):
-        results += t_emb(t_indices, t_offsets)
-    syncTPU(results)
 
+    x = torch.randint(0, features, (batch * nnz, )).to(dev)
+    x1 = torch.randint(0, features, (batch * nnz, )).to(dev)
+    x2 = torch.randint(0, features, (batch * nnz, )).to(dev)
+    x3 = torch.randint(0, features, (batch * nnz, )).to(dev)
+
+    start = time.perf_counter()
+    for i in range(steps + warmups):
+        ## t1 = time.time()
+        # idx = torch.randperm(t_indices.nelement())
+        # x = t_indices.view(-1)[idx]
+        # x = torch.randint(0, features, (batch * nnz, )).to(dev)
+        results = t_emb(t_indices, t_offsets)
+        results += t_emb(x, t_offsets)
+        syncTPU(results)
+        ## t2 = time.time()
+        ## print("Time is : ", t2 - t1)
+        if i == warmups - 1:
+            xm.mark_step()
+            start = time.perf_counter()
+
+    # syncTPU(results)
     end = time.perf_counter()
     results = results.cpu()
 
-    return end - start,results
+    return (end - start) / 2, results
 
 
 def init_indices(alpha, features, batch, nnz):

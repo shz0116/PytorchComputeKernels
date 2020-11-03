@@ -46,13 +46,37 @@ def measure_xla(a, b, steps):
         # Add data dependency to prevent loop elimination
         # The PyTorch/XLA lazy evaluation will eliminate the loop
         # Simplier data dependency will not work
-        b[0] = torch.min(c[0], b[0])
-        c = torch.min(c, torch.mm(a, b))
-
-    sync(c, c.device)
+        ## b[0] = torch.min(c[0], b[0])
+        ## c = torch.min(c, torch.mm(a, b))
+        c = torch.mm(a, b)
+        sync(c, c.device)
     end = time.perf_counter()
     # c.to('cpu')
     return end - start
+
+def measure_xla1(alist, b, steps):
+
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+
+    def sync(tensor, dev):
+        torch_xla._XLAC._xla_sync_multi([tensor], devices=[str(dev)], wait=True, sync_xla_data=True)
+
+    c = torch.mm(alist[0], b)
+
+    start = time.perf_counter()
+    for i in range(steps):
+        # Add data dependency to prevent loop elimination
+        # The PyTorch/XLA lazy evaluation will eliminate the loop
+        # Simplier data dependency will not work
+        # b[0] = torch.min(c[0], b[0])
+        # c = torch.min(c, torch.mm(a, b))
+        for j in range(len(alist)):
+            c = torch.min(c, torch.mm(alist[j], b))
+        sync(c, c.device)
+    end = time.perf_counter()
+    # c.to('cpu')
+    return (end - start) / len(alist)
 
 def measure_xla_2mm(a, b, steps):
 
@@ -122,15 +146,29 @@ def run_single(args, m, n, k):
         # alldev = xm.get_xla_supported_devices()
         # allrealdev = xm.xla_real_devices(alldev)
         # print("Found {0} XLA devices: {1}".format(len(allrealdev), allrealdev))
+        if (m * n * k < 1024 * 1024 * 2048):
+            RNUM = 16
+        else:
+            RNUM = 8
+        RNUM=16
 
         dev = xm.xla_device()
         a = a.to(dev)
+
+        alist = [a]
+        for i in range(RNUM -1):
+            a = torch.randn(m, k).to(dt).to(dev)
+            alist.append(a)
+
         b = b.to(dev)
         c = c.to(dev)
-        measure_xla(a, b, warmups)
-        xm.mark_step()
-        elap = measure_xla(a, b, steps)
-        xm.mark_step()
+
+ 
+#        measure_xla1(alist, b, warmups)
+#        xm.mark_step()
+        for i in range(2):
+            elap = measure_xla1(alist, b, steps)
+            xm.mark_step()
 
     return elap
 
